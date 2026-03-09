@@ -86,27 +86,13 @@ function initChatForProfile(name: string) {
 }
 
 // --- Image helpers ---
-function kwHash(s: string): number {
-  let h = 0
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) & 0x7fffffff
-  return h % 9999
-}
-
-function getWebImageUrl(keyword: string): string {
-  const kw = keyword.toLowerCase().trim()
-  return `https://loremflickr.com/600/400/${encodeURIComponent(kw)}?lock=${kwHash(kw)}`
-}
-
-function getGenerateUrl(prompt: string): string {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=600&height=450&nologo=true`
-}
-
 function parseAssistantMessage(content: string): { text: string; images: string[] } {
   const images: string[] = []
-  let text = content
-  text = text.replace(/\[IMAGE:\s*([^\]]+)\]/gi, (_, kw) => { images.push(getWebImageUrl(kw.trim())); return '' })
-  text = text.replace(/\[GENERATE:\s*([^\]]+)\]/gi, (_, p) => { images.push(getGenerateUrl(p.trim())); return '' })
-  return { text: text.trim(), images }
+  const text = content.replace(/\[GENERATE:\s*([^\]]+)\]/gi, (_, p) => {
+    images.push(`https://image.pollinations.ai/prompt/${encodeURIComponent(p.trim())}?width=600&height=450&nologo=true`)
+    return ''
+  }).trim()
+  return { text, images }
 }
 
 // --- Groq ---
@@ -118,7 +104,7 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
       model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       messages: [
-        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). At the end of EVERY response, add [IMAGE: keyword] where keyword is the single most relevant word or short phrase for the topic. If the user asks to generate or create an image, use [GENERATE: detailed visual description] instead. Always include exactly one image tag.' },
+        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). If the user asks to generate or create an image, include [GENERATE: detailed visual description] in your response. Only include an image tag when explicitly asked.' },
         ...messages,
       ],
     }),
