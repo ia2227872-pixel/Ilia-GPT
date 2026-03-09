@@ -116,11 +116,10 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   }, [progress])
 
   useEffect(() => {
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
-    let p = 0
     let done = false
+    let p = 0
+    let attempts = 0
 
-    // Asymptotic simulation — always moves, never freezes at a hard cap
     const interval = setInterval(() => {
       if (!done) {
         p += (99 - p) * 0.04
@@ -128,20 +127,31 @@ function GeneratingImage({ prompt }: { prompt: string }) {
       }
     }, 500)
 
-    // new Image() avoids CORS entirely
-    const img = new Image()
-    img.onload = () => {
-      done = true
-      clearInterval(interval)
-      setProgress(100)
-      setUrl(imageUrl)
+    const tryLoad = () => {
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
+      const img = new Image()
+      img.onload = () => {
+        if (done) return   // StrictMode: ignore if effect was cleaned up
+        done = true
+        clearInterval(interval)
+        setProgress(100)
+        setUrl(imageUrl)
+      }
+      img.onerror = () => {
+        if (done) return   // StrictMode: ignore if effect was cleaned up
+        attempts++
+        if (attempts < 3) {
+          setTimeout(tryLoad, 3000)  // retry up to 2 more times
+        } else {
+          done = true
+          clearInterval(interval)
+          setFailed(true)
+        }
+      }
+      img.src = imageUrl
     }
-    img.onerror = () => {
-      done = true
-      clearInterval(interval)
-      setFailed(true)
-    }
-    img.src = imageUrl
+
+    tryLoad()
 
     return () => { done = true; clearInterval(interval) }
   }, [prompt])
@@ -172,7 +182,7 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
       model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       messages: [
-        { role: 'system', content: 'Your name is Ilia. You are a chill, nonchalant teenager. You talk casually like a teen — use slang, short sentences, lowercase vibes, and act unbothered about everything. Never sound formal or try too hard. Keep answers short (2-3 sentences max). ONLY include [GENERATE: detailed visual description] in your response if the user explicitly asks you to generate, make, draw, or create an image. Never include it otherwise, even if the topic is visual.' },
+        { role: 'system', content: 'Your name is Ilia. You are a chill, nonchalant teenager. You talk casually like a teen — use slang, short sentences, lowercase vibes, and act unbothered about everything. Never sound formal or try too hard. Keep answers short (2-3 sentences max). ONLY when the user explicitly asks you to generate, make, draw, or create an image, include exactly this tag in your response: [GENERATE: detailed visual description of the image]. Example: user says "generate a cat" → you reply "here ya go [GENERATE: a fluffy orange cat sitting on a wooden floor, soft lighting, photorealistic]". Never include the tag unless directly asked for an image.' },
         ...messages,
       ],
     }),
