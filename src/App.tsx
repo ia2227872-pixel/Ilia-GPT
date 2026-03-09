@@ -66,6 +66,8 @@ function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
   const [profiles, setProfiles] = useState(loadProfiles)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [renamingProfile, setRenamingProfile] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const create = () => {
     const name = newName.trim()
@@ -84,19 +86,59 @@ function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
     localStorage.removeItem(convosKey(name))
   }
 
+  const startRename = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setRenamingProfile(name)
+    setRenameValue(name)
+  }
+
+  const confirmRename = (oldName: string, e: React.FormEvent) => {
+    e.preventDefault()
+    const newName = renameValue.trim()
+    if (newName && newName !== oldName) {
+      const existing = localStorage.getItem(convosKey(oldName))
+      if (existing) localStorage.setItem(convosKey(newName), existing)
+      localStorage.removeItem(convosKey(oldName))
+      const updated = profiles.map(p => p === oldName ? newName : p)
+      setProfiles(updated)
+      saveProfiles(updated)
+    }
+    setRenamingProfile(null)
+  }
+
   return (
     <div className="profile-screen">
       <h1 className="profile-heading">Who's using IliaGPT?</h1>
       <div className="profile-grid">
         {profiles.map(p => (
           <div key={p} className="profile-card-wrap">
-            <button className="profile-card" onClick={() => onSelect(p)}>
-              <div className="profile-avatar" style={{ background: profileColor(p) }}>
-                {p[0].toUpperCase()}
-              </div>
-              <span className="profile-name">{p}</span>
-            </button>
-            <button className="profile-card-delete" onClick={e => deleteProfile(p, e)} title="Delete profile">×</button>
+            {renamingProfile === p ? (
+              <form className="profile-rename-form" onSubmit={e => confirmRename(p, e)}>
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                />
+                <div>
+                  <button type="submit">✓</button>
+                  <button type="button" onClick={() => setRenamingProfile(null)}>✕</button>
+                </div>
+              </form>
+            ) : (
+              <button className="profile-card" onClick={() => onSelect(p)}>
+                <div className="profile-avatar" style={{ background: profileColor(p) }}>
+                  {p[0].toUpperCase()}
+                </div>
+                <span className="profile-name">{p}</span>
+              </button>
+            )}
+            {renamingProfile !== p && (
+              <>
+                <button className="profile-card-rename" onClick={e => startRename(p, e)} title="Rename profile">✎</button>
+                <button className="profile-card-delete" onClick={e => deleteProfile(p, e)} title="Delete profile">×</button>
+              </>
+            )}
           </div>
         ))}
         {!creating && (
@@ -195,21 +237,40 @@ function App() {
 
   const speak = (text: string) => {
     window.speechSynthesis.cancel()
-    jumpTimeouts.current.forEach(clearTimeout)
+    jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
     jumpTimeouts.current = []
+
     const utterance = new SpeechSynthesisUtterance(text)
     const voice = voices.find(v => v.name === selectedVoice)
     if (voice) utterance.voice = voice
+
+    // Schedule word-synced jumps
     const words = text.trim().split(/\s+/)
     let elapsed = 0
-    jumpTimeouts.current = words.map(word => {
-      const dur = Math.max(100, Math.min(600, 80 + word.length * 55))
-      const t = elapsed
+    words.forEach(word => {
+      const dur = Math.max(150, Math.min(700, 120 + word.length * 65))
+      jumpTimeouts.current.push(window.setTimeout(() => triggerJump(dur), elapsed))
       elapsed += dur
-      return window.setTimeout(() => triggerJump(dur), t)
     })
-    utterance.onend = () => { jumpTimeouts.current.forEach(clearTimeout); imgRef.current?.classList.remove('jumping') }
-    utterance.onerror = () => { jumpTimeouts.current.forEach(clearTimeout); imgRef.current?.classList.remove('jumping') }
+
+    // Safety net: if speech outlasts word estimates, keep bouncing via interval
+    jumpTimeouts.current.push(window.setTimeout(() => {
+      if (window.speechSynthesis.speaking) {
+        const interval = window.setInterval(() => {
+          if (!window.speechSynthesis.speaking) { clearInterval(interval); return }
+          triggerJump(300)
+        }, 350)
+        jumpTimeouts.current.push(interval)
+      }
+    }, elapsed))
+
+    const cleanup = () => {
+      jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
+      jumpTimeouts.current = []
+      imgRef.current?.classList.remove('jumping')
+    }
+    utterance.onend = cleanup
+    utterance.onerror = cleanup
     window.speechSynthesis.speak(utterance)
   }
 

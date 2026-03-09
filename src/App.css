@@ -301,26 +301,71 @@ body, html, #root {
   position: relative;
 }
 
-.profile-card-wrap .profile-card-delete {
+.profile-card-wrap .profile-card-delete,
+.profile-card-wrap .profile-card-rename {
   display: none;
   position: absolute;
-  top: -8px;
-  right: -8px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   border: none;
-  background: #c0392b;
   color: white;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   line-height: 1;
   cursor: pointer;
   align-items: center;
   justify-content: center;
   z-index: 1;
 }
-.profile-card-wrap:hover .profile-card-delete { display: flex; }
+.profile-card-wrap .profile-card-delete {
+  top: -8px;
+  right: -8px;
+  background: #c0392b;
+}
+.profile-card-wrap .profile-card-rename {
+  top: -8px;
+  left: -8px;
+  background: #555;
+}
+.profile-card-wrap:hover .profile-card-delete,
+.profile-card-wrap:hover .profile-card-rename { display: flex; }
 .profile-card-delete:hover { background: #e74c3c; }
+.profile-card-rename:hover { background: #6c63ff; }
+
+.profile-rename-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem;
+  background: #1c1c1c;
+  border-radius: 12px;
+  border: 2px solid #6c63ff;
+  min-width: 100px;
+}
+.profile-rename-form input {
+  width: 90px;
+  padding: 0.3rem 0.5rem;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+  text-align: center;
+}
+.profile-rename-form button {
+  padding: 0.2rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  background: #333;
+  color: #ccc;
+}
+.profile-rename-form button:first-of-type { background: #6c63ff; color: white; }
+.profile-rename-form button:first-of-type:hover { background: #5a52d5; }
+.profile-rename-form > div { display: flex; gap: 0.3rem; }
 
 .profile-card {
   display: flex;
