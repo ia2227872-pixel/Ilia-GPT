@@ -52,7 +52,7 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
       model: 'llama-3.1-8b-instant',
       max_tokens: 300,
       messages: [
-        { role: 'system', content: 'You are Ilia. Answer questions in first person, casually and conversationally. Keep answers short (2-3 sentences max). Do not mention any pictures or images.' },
+        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). Do not mention any pictures or images.' },
         ...messages,
       ],
     }),
