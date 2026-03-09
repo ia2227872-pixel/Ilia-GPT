@@ -111,57 +111,85 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   useEffect(() => {
     if (progress >= 100) { setStalled(false); return }
     setStalled(false)
-    const t = setTimeout(() => setStalled(true), 1500)
+    const t = setTimeout(() => setStalled(true), 5000)
     return () => clearTimeout(t)
   }, [progress])
 
   useEffect(() => {
-    const stopWords = new Set(['a','an','the','of','in','on','at','with','and','or','to','is','are','by','from','that','this','over','into','across','towards','some','few','soft','warm','golden','bright','beautiful','stunning','vibrant','rich','deep','light','dark','detailed','cinematic','realistic','photorealistic','dramatic','elegant','gentle','vivid'])
-    const keywords = prompt.toLowerCase()
-      .replace(/[^a-z0-9 ]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 2 && !stopWords.has(w))
-      .slice(0, 4)
-      .join(',')
-    const lock = Math.floor(Math.random() * 99991)
-    const imageUrl = `https://loremflickr.com/512/384/${encodeURIComponent(keywords || 'nature')}?lock=${lock}`
-    let done = false
-    let p = 0
-    let attempts = 0
+    let cancelled = false
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
+    let initialWaitTime: number | null = null
 
-    const interval = setInterval(() => {
-      if (!done) {
-        p += (99 - p) * 0.04
-        setProgress(Math.round(p))
-      }
-    }, 500)
+    const poll = async (id: string) => {
+      if (cancelled) return
+      try {
+        const res = await fetch(`https://stablehorde.net/api/v2/generate/check/${id}`)
+        const check = await res.json()
+        if (cancelled) return
 
-    const tryLoad = () => {
-      const img = new Image()
-      img.onload = () => {
-        if (done) return
-        done = true
-        clearInterval(interval)
-        setProgress(100)
-        setUrl(imageUrl)
-      }
-      img.onerror = () => {
-        if (done) return
-        attempts++
-        if (attempts < 3) {
-          setTimeout(tryLoad, 3000)
-        } else {
-          done = true
-          clearInterval(interval)
-          setFailed(true)
+        if (check.faulted) { setFailed(true); return }
+
+        if (initialWaitTime === null && check.wait_time > 0) {
+          initialWaitTime = check.wait_time
         }
+
+        if (check.done) {
+          setProgress(95)
+          const statusRes = await fetch(`https://stablehorde.net/api/v2/generate/status/${id}`)
+          const status = await statusRes.json()
+          if (cancelled) return
+          const imgUrl = status.generations?.[0]?.img
+          if (imgUrl) {
+            setProgress(100)
+            setUrl(imgUrl)
+          } else {
+            setFailed(true)
+          }
+        } else {
+          if (initialWaitTime && initialWaitTime > 0) {
+            const elapsed = initialWaitTime - (check.wait_time ?? 0)
+            const pct = Math.min(90, Math.max(5, Math.round((elapsed / initialWaitTime) * 85) + 5))
+            setProgress(pct)
+          } else if (check.processing > 0) {
+            setProgress(prev => Math.min(90, Math.round(prev + (90 - prev) * 0.1)))
+          }
+          pollTimer = setTimeout(() => poll(id), 2000)
+        }
+      } catch {
+        if (!cancelled) pollTimer = setTimeout(() => poll(id), 3000)
       }
-      img.src = imageUrl
     }
 
-    tryLoad()
+    const start = async () => {
+      try {
+        setProgress(3)
+        const res = await fetch('https://stablehorde.net/api/v2/generate/async', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': '0000000000',
+            'Client-Agent': 'IliaGPT:1.0:unknown'
+          },
+          body: JSON.stringify({
+            prompt,
+            params: { width: 512, height: 512, n: 1, steps: 25, sampler_name: 'k_euler' }
+          })
+        })
+        if (!res.ok) throw new Error(`${res.status}`)
+        const { id } = await res.json()
+        if (cancelled) return
+        setProgress(5)
+        pollTimer = setTimeout(() => poll(id), 2000)
+      } catch {
+        if (!cancelled) setFailed(true)
+      }
+    }
 
-    return () => { done = true; clearInterval(interval) }
+    start()
+    return () => {
+      cancelled = true
+      if (pollTimer) clearTimeout(pollTimer)
+    }
   }, [prompt])
 
   if (failed) return <span className="gen-failed">couldn't generate that image lol</span>
