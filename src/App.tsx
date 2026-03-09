@@ -89,24 +89,27 @@ function initChatForProfile(name: string) {
 function parseAssistantMessage(content: string): { text: string; images: string[] } {
   const images: string[] = []
   const text = content.replace(/\[GENERATE:\s*([^\]]+)\]/gi, (_, p) => {
-    images.push(`https://image.pollinations.ai/prompt/${encodeURIComponent(p.trim())}?width=600&height=450&nologo=true`)
+    images.push(`https://image.pollinations.ai/prompt/${encodeURIComponent(p.trim())}?width=512&height=384&model=turbo&nologo=true`)
     return ''
   }).trim()
   return { text, images }
 }
 
 // --- Generating Image with progress bar ---
+// Turbo model typically finishes in 3-8s; bar reaches ~88% in ~5s then stalls
 function GeneratingImage({ url }: { url: string }) {
   const [progress, setProgress] = useState(0)
   const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
     timerRef.current = window.setInterval(() => {
       setProgress(prev => {
-        if (prev >= 90) { clearInterval(timerRef.current!); return 90 }
-        const rate = prev < 40 ? 1.8 : prev < 75 ? 0.7 : 0.2
-        return Math.min(90, prev + rate)
+        if (prev >= 88) { clearInterval(timerRef.current!); return 88 }
+        // Fast early (simulates model warmup), steady mid, slow near end
+        const rate = prev < 45 ? 3.5 : prev < 72 ? 1.4 : 0.4
+        return Math.min(88, prev + rate)
       })
     }, 100)
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
@@ -117,6 +120,13 @@ function GeneratingImage({ url }: { url: string }) {
     setProgress(100)
     setLoaded(true)
   }
+
+  const handleError = () => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    setFailed(true)
+  }
+
+  if (failed) return <div className="gen-progress-wrap"><span className="gen-progress-label">Image generation failed.</span></div>
 
   return (
     <div className="generating-image-wrap">
@@ -134,6 +144,7 @@ function GeneratingImage({ url }: { url: string }) {
         className="chat-image"
         style={{ display: loaded ? 'block' : 'none' }}
         onLoad={handleLoad}
+        onError={handleError}
       />
     </div>
   )
