@@ -76,17 +76,28 @@ function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
     onSelect(name)
   }
 
+  const deleteProfile = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const updated = profiles.filter(p => p !== name)
+    setProfiles(updated)
+    saveProfiles(updated)
+    localStorage.removeItem(convosKey(name))
+  }
+
   return (
     <div className="profile-screen">
       <h1 className="profile-heading">Who's using IliaGPT?</h1>
       <div className="profile-grid">
         {profiles.map(p => (
-          <button key={p} className="profile-card" onClick={() => onSelect(p)}>
-            <div className="profile-avatar" style={{ background: profileColor(p) }}>
-              {p[0].toUpperCase()}
-            </div>
-            <span className="profile-name">{p}</span>
-          </button>
+          <div key={p} className="profile-card-wrap">
+            <button className="profile-card" onClick={() => onSelect(p)}>
+              <div className="profile-avatar" style={{ background: profileColor(p) }}>
+                {p[0].toUpperCase()}
+              </div>
+              <span className="profile-name">{p}</span>
+            </button>
+            <button className="profile-card-delete" onClick={e => deleteProfile(p, e)} title="Delete profile">×</button>
+          </div>
         ))}
         {!creating && (
           <button className="profile-card profile-new" onClick={() => setCreating(true)}>

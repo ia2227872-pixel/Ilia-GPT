@@ -297,6 +297,31 @@ body, html, #root {
   max-width: 520px;
 }
 
+.profile-card-wrap {
+  position: relative;
+}
+
+.profile-card-wrap .profile-card-delete {
+  display: none;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: #c0392b;
+  color: white;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.profile-card-wrap:hover .profile-card-delete { display: flex; }
+.profile-card-delete:hover { background: #e74c3c; }
+
 .profile-card {
   display: flex;
   flex-direction: column;
