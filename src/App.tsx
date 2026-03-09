@@ -117,47 +117,58 @@ function GeneratingImage({ prompt }: { prompt: string }) {
 
   useEffect(() => {
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
-    let done = false
     let p = 0
-    let attempts = 0
+    let downloadStarted = false
+    let blobUrl = ''
 
+    // Phase 1: asymptotic simulation while server is generating (never reaches 88, always moves)
     const interval = setInterval(() => {
-      if (!done) {
-        p += (99 - p) * 0.04
+      if (!downloadStarted) {
+        p += (88 - p) * 0.04
         setProgress(Math.round(p))
       }
     }, 500)
 
-    const tryLoad = () => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', imageUrl)
+    xhr.responseType = 'blob'
+
+    // Phase 2: real byte tracking once server starts sending data
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        if (!downloadStarted) { downloadStarted = true; clearInterval(interval) }
+        const dlPct = e.loaded / e.total
+        setProgress(Math.min(99, Math.round(88 + dlPct * 12)))
+      }
+    }
+
+    xhr.onload = () => {
+      clearInterval(interval)
+      setProgress(100)
+      blobUrl = URL.createObjectURL(xhr.response)
+      setUrl(blobUrl)
+    }
+
+    // Fallback: if XHR fails (CORS etc), use plain Image tag
+    xhr.onerror = () => {
+      clearInterval(interval)
       const img = new Image()
-      img.onload = () => {
-        if (done) return
-        done = true
-        clearInterval(interval)
-        setProgress(100)
-        setUrl(imageUrl)
-      }
-      img.onerror = () => {
-        if (done) return
-        attempts++
-        if (attempts < 3) {
-          setTimeout(tryLoad, 3000)
-        } else {
-          done = true
-          clearInterval(interval)
-          setFailed(true)
-        }
-      }
+      img.onload = () => { setProgress(100); setUrl(imageUrl) }
+      img.onerror = () => setFailed(true)
       img.src = imageUrl
     }
 
-    tryLoad()
+    xhr.send()
 
-    return () => { done = true; clearInterval(interval) }
+    return () => {
+      clearInterval(interval)
+      xhr.abort()
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
+    }
   }, [prompt])
 
-  if (failed) return <span className="gen-failed">couldn't generate that image, my bad</span>
-  if (url) return <img src={url} alt="generated image" className="chat-image" />
+  if (failed) return null
+  if (url) return <img src={url} alt={prompt} className="chat-image" />
   return (
     <div className="generating-image-wrap">
       <div className="gen-progress-wrap">
@@ -182,7 +193,7 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
       model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       messages: [
-        { role: 'system', content: 'Your name is Ilia. You are a chill, nonchalant teenager. You talk casually like a teen — use slang, short sentences, lowercase vibes, and act unbothered about everything. Never sound formal or try too hard. Keep answers short (2-3 sentences max). When the user asks you to generate or make an image, include [GENERATE: detailed visual description] in your response where you want the image to appear.' },
+        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). When the user asks you to generate or make an image, include [GENERATE: detailed visual description] in your response where you want the image to appear.' },
         ...messages,
       ],
     }),
