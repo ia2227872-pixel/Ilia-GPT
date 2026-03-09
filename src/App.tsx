@@ -86,6 +86,55 @@ function initChatForProfile(name: string) {
 }
 
 
+// --- Image Generation ---
+type MsgPart = { type: 'text'; text: string } | { type: 'generate'; prompt: string }
+
+function parseAssistantMessage(content: string): MsgPart[] {
+  const parts: MsgPart[] = []
+  const regex = /\[GENERATE:\s*([^\]]+)\]/gi
+  let last = 0, match
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > last) parts.push({ type: 'text', text: content.slice(last, match.index).trim() })
+    parts.push({ type: 'generate', prompt: match[1].trim() })
+    last = match.index + match[0].length
+  }
+  if (last < content.length) parts.push({ type: 'text', text: content.slice(last).trim() })
+  return parts.filter(p => p.type !== 'text' || (p as { type: 'text'; text: string }).text.length > 0)
+}
+
+function GeneratingImage({ prompt }: { prompt: string }) {
+  const [progress, setProgress] = useState(0)
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
+    let p = 0
+    const interval = setInterval(() => {
+      p = Math.min(p + Math.random() * 6, 90)
+      setProgress(p)
+    }, 600)
+    const img = new Image()
+    img.onload = () => { clearInterval(interval); setProgress(100); setUrl(imageUrl) }
+    img.onerror = () => { clearInterval(interval); setFailed(true) }
+    img.src = imageUrl
+    return () => clearInterval(interval)
+  }, [prompt])
+
+  if (failed) return null
+  if (url) return <img src={url} alt={prompt} className="chat-image" />
+  return (
+    <div className="generating-image-wrap">
+      <div className="gen-progress-wrap">
+        <span className="gen-progress-label">Generating image... {Math.round(progress)}%</span>
+        <div className="gen-progress-track">
+          <div className="gen-progress-bar" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // --- Groq ---
 async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -95,7 +144,7 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
       model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       messages: [
-        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). Do not mention any pictures or images.' },
+        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). When the user asks you to generate or make an image, include [GENERATE: detailed visual description] in your response where you want the image to appear.' },
         ...messages,
       ],
     }),
@@ -450,7 +499,8 @@ function App() {
       )
       setConvos(withReply)
       saveConvos(currentProfile.name, withReply)
-      speak(reply)
+      const textOnly = parseAssistantMessage(reply).filter(p => p.type === 'text').map(p => p.text).join(' ')
+      speak(textOnly)
     } catch { /* silently fail */ }
     setIsLoading(false)
   }
@@ -508,7 +558,17 @@ function App() {
                     </div>
                   )}
                   <div className={`message ${msg.role}`}>
-                    <div className="bubble">{msg.content}</div>
+                    {msg.role === 'assistant' ? (
+                      <div className="bubble">
+                        {parseAssistantMessage(msg.content).map((part, pi) =>
+                          part.type === 'text'
+                            ? <span key={pi}>{part.text}</span>
+                            : <GeneratingImage key={pi} prompt={part.prompt} />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bubble">{msg.content}</div>
+                    )}
                   </div>
                 </React.Fragment>
               )
