@@ -116,7 +116,14 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   }, [progress])
 
   useEffect(() => {
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
+    const stopWords = new Set(['a','an','the','of','in','on','at','with','and','or','to','is','are','by','from','that','this','over','into','across','towards','some','few','soft','warm','golden','bright','beautiful','stunning','vibrant','rich','deep','light','dark','detailed','cinematic','realistic','photorealistic','dramatic','elegant','gentle','vivid'])
+    const keywords = prompt.toLowerCase()
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w))
+      .slice(0, 4)
+      .join(',')
+    const imageUrl = `https://loremflickr.com/512/384/${encodeURIComponent(keywords || 'nature')}?random=${Math.floor(Math.random()*10000)}`
     let done = false
     let p = 0
     let attempts = 0
