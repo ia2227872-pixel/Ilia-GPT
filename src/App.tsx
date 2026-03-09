@@ -117,58 +117,47 @@ function GeneratingImage({ prompt }: { prompt: string }) {
 
   useEffect(() => {
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
+    let done = false
     let p = 0
-    let downloadStarted = false
-    let blobUrl = ''
+    let attempts = 0
 
-    // Phase 1: asymptotic simulation while server is generating (never reaches 88, always moves)
     const interval = setInterval(() => {
-      if (!downloadStarted) {
-        p += (88 - p) * 0.04
+      if (!done) {
+        p += (99 - p) * 0.04
         setProgress(Math.round(p))
       }
     }, 500)
 
-    const xhr = new XMLHttpRequest()
-    xhr.open('GET', imageUrl)
-    xhr.responseType = 'blob'
-
-    // Phase 2: real byte tracking once server starts sending data
-    xhr.onprogress = (e) => {
-      if (e.lengthComputable && e.total > 0) {
-        if (!downloadStarted) { downloadStarted = true; clearInterval(interval) }
-        const dlPct = e.loaded / e.total
-        setProgress(Math.min(99, Math.round(88 + dlPct * 12)))
-      }
-    }
-
-    xhr.onload = () => {
-      clearInterval(interval)
-      setProgress(100)
-      blobUrl = URL.createObjectURL(xhr.response)
-      setUrl(blobUrl)
-    }
-
-    // Fallback: if XHR fails (CORS etc), use plain Image tag
-    xhr.onerror = () => {
-      clearInterval(interval)
+    const tryLoad = () => {
       const img = new Image()
-      img.onload = () => { setProgress(100); setUrl(imageUrl) }
-      img.onerror = () => setFailed(true)
+      img.onload = () => {
+        if (done) return
+        done = true
+        clearInterval(interval)
+        setProgress(100)
+        setUrl(imageUrl)
+      }
+      img.onerror = () => {
+        if (done) return
+        attempts++
+        if (attempts < 3) {
+          setTimeout(tryLoad, 3000)
+        } else {
+          done = true
+          clearInterval(interval)
+          setFailed(true)
+        }
+      }
       img.src = imageUrl
     }
 
-    xhr.send()
+    tryLoad()
 
-    return () => {
-      clearInterval(interval)
-      xhr.abort()
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
-    }
+    return () => { done = true; clearInterval(interval) }
   }, [prompt])
 
-  if (failed) return null
-  if (url) return <img src={url} alt={prompt} className="chat-image" />
+  if (failed) return <span className="gen-failed">couldn't generate that image, my bad</span>
+  if (url) return <img src={url} alt="generated image" className="chat-image" />
   return (
     <div className="generating-image-wrap">
       <div className="gen-progress-wrap">
