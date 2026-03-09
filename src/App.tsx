@@ -85,6 +85,22 @@ function initChatForProfile(name: string) {
   return { convos: saved, activeId: saved[0].id }
 }
 
+// --- Image helpers ---
+const IMAGE_TAG = /\[IMAGE:\s*([^\]]+)\]/gi
+
+function getImageUrl(prompt: string): string {
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=600&height=450&nologo=true`
+}
+
+function parseAssistantMessage(content: string): { text: string; images: string[] } {
+  const images: string[] = []
+  const text = content.replace(IMAGE_TAG, (_, prompt) => {
+    images.push(getImageUrl(prompt.trim()))
+    return ''
+  }).trim()
+  return { text, images }
+}
+
 // --- Groq ---
 async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -92,9 +108,9 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'llama-3.1-8b-instant',
-      max_tokens: 300,
+      max_tokens: 400,
       messages: [
-        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). Do not mention any pictures or images.' },
+        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). When the user asks to see, show, find, or generate an image or picture of something, include [IMAGE: detailed visual description] in your response. Only include an image tag when the user explicitly asks for a visual.' },
         ...messages,
       ],
     }),
@@ -449,7 +465,7 @@ function App() {
       )
       setConvos(withReply)
       saveConvos(currentProfile.name, withReply)
-      speak(reply)
+      speak(parseAssistantMessage(reply).text)
     } catch { /* silently fail */ }
     setIsLoading(false)
   }
@@ -499,6 +515,9 @@ function App() {
           {(() => {
             return activeConvo?.messages.map((msg, i) => {
               const showReaction = msg.role === 'assistant' && (((i * 1103515245 + 12345) >>> 0) % 100 < 5)
+              const { text, images } = msg.role === 'assistant'
+                ? parseAssistantMessage(msg.content)
+                : { text: msg.content, images: [] }
               return (
                 <React.Fragment key={i}>
                   {showReaction && (
@@ -506,9 +525,16 @@ function App() {
                       <img src="/reaction.png" className="reaction-img" alt="reaction" />
                     </div>
                   )}
-                  <div className={`message ${msg.role}`}>
-                    <div className="bubble">{msg.content}</div>
-                  </div>
+                  {text && (
+                    <div className={`message ${msg.role}`}>
+                      <div className="bubble">{text}</div>
+                    </div>
+                  )}
+                  {images.map((url, j) => (
+                    <div key={j} className="message assistant">
+                      <img src={url} alt="generated" className="chat-image" loading="lazy" />
+                    </div>
+                  ))}
                 </React.Fragment>
               )
             })
