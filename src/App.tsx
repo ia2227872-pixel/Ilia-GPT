@@ -116,7 +116,7 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   }, [progress])
 
   useEffect(() => {
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
     let done = false
     let p = 0
     let attempts = 0
