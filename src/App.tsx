@@ -106,6 +106,14 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   const [progress, setProgress] = useState(0)
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [stalled, setStalled] = useState(false)
+
+  useEffect(() => {
+    if (progress >= 100) { setStalled(false); return }
+    setStalled(false)
+    const t = setTimeout(() => setStalled(true), 1500)
+    return () => clearTimeout(t)
+  }, [progress])
 
   useEffect(() => {
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
@@ -164,7 +172,10 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   return (
     <div className="generating-image-wrap">
       <div className="gen-progress-wrap">
-        <span className="gen-progress-label">Generating image... {Math.round(progress)}%</span>
+        <span className="gen-progress-label">
+          Generating image... {Math.round(progress)}%
+          {stalled && <span className="gen-spinner" />}
+        </span>
         <div className="gen-progress-track">
           <div className="gen-progress-bar" style={{ width: `${progress}%` }} />
         </div>
