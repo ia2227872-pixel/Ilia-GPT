@@ -110,15 +110,53 @@ function GeneratingImage({ prompt }: { prompt: string }) {
   useEffect(() => {
     const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=384&nologo=true`
     let p = 0
+    let downloadStarted = false
+    let blobUrl = ''
+
+    // Phase 1: asymptotic simulation while server is generating (never reaches 88, always moves)
     const interval = setInterval(() => {
-      p = Math.min(p + Math.random() * 6, 90)
-      setProgress(p)
-    }, 600)
-    const img = new Image()
-    img.onload = () => { clearInterval(interval); setProgress(100); setUrl(imageUrl) }
-    img.onerror = () => { clearInterval(interval); setFailed(true) }
-    img.src = imageUrl
-    return () => clearInterval(interval)
+      if (!downloadStarted) {
+        p += (88 - p) * 0.04
+        setProgress(Math.round(p))
+      }
+    }, 500)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', imageUrl)
+    xhr.responseType = 'blob'
+
+    // Phase 2: real byte tracking once server starts sending data
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        if (!downloadStarted) { downloadStarted = true; clearInterval(interval) }
+        const dlPct = e.loaded / e.total
+        setProgress(Math.min(99, Math.round(88 + dlPct * 12)))
+      }
+    }
+
+    xhr.onload = () => {
+      clearInterval(interval)
+      setProgress(100)
+      blobUrl = URL.createObjectURL(xhr.response)
+      setUrl(blobUrl)
+    }
+
+    // Fallback: if XHR fails (CORS etc), use plain Image tag
+    xhr.onerror = () => {
+      clearInterval(interval)
+      const img = new Image()
+      img.onload = () => { setProgress(100); setUrl(imageUrl) }
+      img.onerror = () => setFailed(true)
+      img.src = imageUrl
+    }
+
+    xhr.send()
+
+    return () => {
+      clearInterval(interval)
+      xhr.abort()
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
+    }
   }, [prompt])
 
   if (failed) return null
