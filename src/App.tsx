@@ -123,7 +123,8 @@ function GeneratingImage({ prompt }: { prompt: string }) {
       .filter(w => w.length > 2 && !stopWords.has(w))
       .slice(0, 4)
       .join(',')
-    const imageUrl = `https://loremflickr.com/512/384/${encodeURIComponent(keywords || 'nature')}?random=${Math.floor(Math.random()*10000)}`
+    const lock = Math.floor(Math.random() * 99991)
+    const imageUrl = `https://loremflickr.com/512/384/${encodeURIComponent(keywords || 'nature')}?lock=${lock}`
     let done = false
     let p = 0
     let attempts = 0
