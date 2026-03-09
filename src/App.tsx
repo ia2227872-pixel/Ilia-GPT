@@ -4,41 +4,82 @@ import './App.css'
 // --- Types ---
 interface Message { role: 'user' | 'assistant'; content: string }
 interface Conversation { id: string; title: string; messages: Message[] }
+interface Profile { name: string; color: string }
 
-// --- Storage ---
-const PROFILES_KEY = 'iliagpt-profiles'
-const CURRENT_KEY  = 'iliagpt-current'
-const convosKey = (p: string) => `iliagpt-convos-${p}`
-
-const loadProfiles = (): string[] => {
-  try { return JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]') } catch { return [] }
+// --- Color Helpers ---
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+  let h = 0
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d + 6) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+  }
+  return { h, s: max === 0 ? 0 : d / max, v: max }
 }
-const saveProfiles = (ps: string[]) => localStorage.setItem(PROFILES_KEY, JSON.stringify(ps))
-const loadCurrentProfile = (): string | null => localStorage.getItem(CURRENT_KEY)
-const saveCurrentProfile = (p: string | null) =>
-  p ? localStorage.setItem(CURRENT_KEY, p) : localStorage.removeItem(CURRENT_KEY)
 
-const loadConvos = (profile: string): Conversation[] => {
-  try { return JSON.parse(localStorage.getItem(convosKey(profile)) || '[]') } catch { return [] }
+function hsvToHex({ h, s, v }: { h: number; s: number; v: number }): string {
+  const f = (n: number) => {
+    const k = (n + h / 60) % 6
+    return Math.round((v - v * s * Math.max(0, Math.min(k, 4 - k, 1))) * 255)
+      .toString(16).padStart(2, '0')
+  }
+  return `#${f(5)}${f(3)}${f(1)}`
 }
-const saveConvos = (profile: string, convos: Conversation[]) =>
-  localStorage.setItem(convosKey(profile), JSON.stringify(convos))
 
-// --- Helpers ---
-const makeConvo = (): Conversation => ({ id: crypto.randomUUID(), title: 'New conversation', messages: [] })
+function darkenHex(hex: string, amount = 0.18): string {
+  const { h, s, v } = hexToHsv(hex)
+  return hsvToHex({ h, s, v: Math.max(0, v - amount) })
+}
 
-const profileColor = (name: string): string => {
+function legacyColor(name: string): string {
   let h = 0
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
   return `hsl(${Math.abs(h) % 360}, 55%, 52%)`
 }
 
-function initChatForProfile(profile: string) {
-  let saved = loadConvos(profile)
+// --- Storage ---
+const PROFILES_KEY = 'iliagpt-profiles'
+const CURRENT_KEY  = 'iliagpt-current'
+const convosKey = (name: string) => `iliagpt-convos-${name}`
+
+const loadProfiles = (): Profile[] => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PROFILES_KEY) || '[]')
+    return (raw as (string | Profile)[]).map(p =>
+      typeof p === 'string' ? { name: p, color: legacyColor(p) } : p
+    )
+  } catch { return [] }
+}
+const saveProfiles = (ps: Profile[]) => localStorage.setItem(PROFILES_KEY, JSON.stringify(ps))
+
+const loadCurrentProfile = (): Profile | null => {
+  const name = localStorage.getItem(CURRENT_KEY)
+  if (!name) return null
+  return loadProfiles().find(p => p.name === name) ?? null
+}
+const saveCurrentProfile = (name: string | null) =>
+  name ? localStorage.setItem(CURRENT_KEY, name) : localStorage.removeItem(CURRENT_KEY)
+
+const loadConvos = (name: string): Conversation[] => {
+  try { return JSON.parse(localStorage.getItem(convosKey(name)) || '[]') } catch { return [] }
+}
+const saveConvos = (name: string, convos: Conversation[]) =>
+  localStorage.setItem(convosKey(name), JSON.stringify(convos))
+
+// --- Helpers ---
+const makeConvo = (): Conversation => ({ id: crypto.randomUUID(), title: 'New conversation', messages: [] })
+
+function initChatForProfile(name: string) {
+  let saved = loadConvos(name)
   if (saved.length === 0) {
     const first = makeConvo()
     saved = [first]
-    saveConvos(profile, saved)
+    saveConvos(name, saved)
   }
   return { convos: saved, activeId: saved[0].id }
 }
@@ -61,49 +102,130 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
   return data.choices?.[0]?.message?.content ?? 'Sorry, something went wrong.'
 }
 
+// --- Color Picker ---
+function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
+  const [hsv, setHsv] = useState<{ h: number; s: number; v: number }>(() => {
+    try { return hexToHsv(color) } catch { return { h: 260, s: 0.6, v: 1 } }
+  })
+  const hsvRef = useRef(hsv)
+  hsvRef.current = hsv
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  const squareRef = useRef<HTMLDivElement>(null)
+  const hueRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef<'square' | 'hue' | null>(null)
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      const cur = dragging.current
+      if (!cur) return
+      if (cur === 'square' && squareRef.current) {
+        const rect = squareRef.current.getBoundingClientRect()
+        const s = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+        const v = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+        const next = { ...hsvRef.current, s, v }
+        hsvRef.current = next; setHsv(next); onChangeRef.current(hsvToHex(next))
+      } else if (cur === 'hue' && hueRef.current) {
+        const rect = hueRef.current.getBoundingClientRect()
+        const h = Math.max(0, Math.min(360, ((e.clientX - rect.left) / rect.width) * 360))
+        const next = { ...hsvRef.current, h }
+        hsvRef.current = next; setHsv(next); onChangeRef.current(hsvToHex(next))
+      }
+    }
+    const up = () => { dragging.current = null }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+  }, [])
+
+  const startSquare = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    dragging.current = 'square'
+    const rect = squareRef.current!.getBoundingClientRect()
+    const s = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    const v = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+    const next = { ...hsvRef.current, s, v }
+    hsvRef.current = next; setHsv(next); onChangeRef.current(hsvToHex(next))
+  }
+
+  const startHue = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    dragging.current = 'hue'
+    const rect = hueRef.current!.getBoundingClientRect()
+    const h = Math.max(0, Math.min(360, ((e.clientX - rect.left) / rect.width) * 360))
+    const next = { ...hsvRef.current, h }
+    hsvRef.current = next; setHsv(next); onChangeRef.current(hsvToHex(next))
+  }
+
+  const hueColor = hsvToHex({ h: hsv.h, s: 1, v: 1 })
+  return (
+    <div className="color-picker" onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+      <div ref={squareRef} className="cp-square" style={{ background: hueColor }} onMouseDown={startSquare}>
+        <div className="cp-sq-white" />
+        <div className="cp-sq-black" />
+        <div className="cp-dot" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
+      </div>
+      <div ref={hueRef} className="cp-hue" onMouseDown={startHue}>
+        <div className="cp-hue-thumb" style={{ left: `${(hsv.h / 360) * 100}%`, background: hueColor }} />
+      </div>
+    </div>
+  )
+}
+
 // --- Profile Select Screen ---
-function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
+function ProfileSelect({ onSelect }: { onSelect: (profile: Profile) => void }) {
   const [profiles, setProfiles] = useState(loadProfiles)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newColor, setNewColor] = useState('#6c63ff')
+  const [showCreatePicker, setShowCreatePicker] = useState(false)
   const [renamingProfile, setRenamingProfile] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [renameColor, setRenameColor] = useState('#6c63ff')
+  const [showRenamePicker, setShowRenamePicker] = useState(false)
 
   const create = () => {
     const name = newName.trim()
     if (!name) return
-    const updated = [...profiles, name]
+    const profile: Profile = { name, color: newColor }
+    const updated = [...profiles, profile]
     setProfiles(updated)
     saveProfiles(updated)
-    onSelect(name)
+    onSelect(profile)
   }
 
   const deleteProfile = (name: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    const updated = profiles.filter(p => p !== name)
+    const updated = profiles.filter(p => p.name !== name)
     setProfiles(updated)
     saveProfiles(updated)
     localStorage.removeItem(convosKey(name))
   }
 
-  const startRename = (name: string, e: React.MouseEvent) => {
+  const startRename = (profile: Profile, e: React.MouseEvent) => {
     e.stopPropagation()
-    setRenamingProfile(name)
-    setRenameValue(name)
+    setRenamingProfile(profile.name)
+    setRenameValue(profile.name)
+    setRenameColor(profile.color)
+    setShowRenamePicker(false)
   }
 
   const confirmRename = (oldName: string, e: React.FormEvent) => {
     e.preventDefault()
-    const newName = renameValue.trim()
-    if (newName && newName !== oldName) {
-      const existing = localStorage.getItem(convosKey(oldName))
-      if (existing) localStorage.setItem(convosKey(newName), existing)
-      localStorage.removeItem(convosKey(oldName))
-      const updated = profiles.map(p => p === oldName ? newName : p)
+    const name = renameValue.trim()
+    if (name) {
+      if (name !== oldName) {
+        const existing = localStorage.getItem(convosKey(oldName))
+        if (existing) localStorage.setItem(convosKey(name), existing)
+        localStorage.removeItem(convosKey(oldName))
+        if (localStorage.getItem(CURRENT_KEY) === oldName) localStorage.setItem(CURRENT_KEY, name)
+      }
+      const updated = profiles.map(p => p.name === oldName ? { name, color: renameColor } : p)
       setProfiles(updated)
       saveProfiles(updated)
     }
     setRenamingProfile(null)
+    setShowRenamePicker(false)
   }
 
   return (
@@ -111,32 +233,40 @@ function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
       <h1 className="profile-heading">Who's using IliaGPT?</h1>
       <div className="profile-grid">
         {profiles.map(p => (
-          <div key={p} className="profile-card-wrap">
-            {renamingProfile === p ? (
-              <form className="profile-rename-form" onSubmit={e => confirmRename(p, e)}>
+          <div key={p.name} className="profile-card-wrap">
+            {renamingProfile === p.name ? (
+              <form className="profile-rename-form" style={{ borderColor: renameColor }} onSubmit={e => confirmRename(p.name, e)}>
                 <input
                   autoFocus
                   value={renameValue}
                   onChange={e => setRenameValue(e.target.value)}
                   onClick={e => e.stopPropagation()}
                 />
+                <button
+                  type="button"
+                  className="color-swatch-btn"
+                  style={{ background: renameColor }}
+                  onClick={e => { e.stopPropagation(); setShowRenamePicker(v => !v) }}
+                  title="Pick color"
+                />
+                {showRenamePicker && <ColorPicker color={renameColor} onChange={setRenameColor} />}
                 <div>
                   <button type="submit">✓</button>
-                  <button type="button" onClick={() => setRenamingProfile(null)}>✕</button>
+                  <button type="button" onClick={() => { setRenamingProfile(null); setShowRenamePicker(false) }}>✕</button>
                 </div>
               </form>
             ) : (
               <button className="profile-card" onClick={() => onSelect(p)}>
-                <div className="profile-avatar" style={{ background: profileColor(p) }}>
-                  {p[0].toUpperCase()}
+                <div className="profile-avatar" style={{ background: p.color }}>
+                  {p.name[0].toUpperCase()}
                 </div>
-                <span className="profile-name">{p}</span>
+                <span className="profile-name">{p.name}</span>
               </button>
             )}
-            {renamingProfile !== p && (
+            {renamingProfile !== p.name && (
               <>
                 <button className="profile-card-rename" onClick={e => startRename(p, e)} title="Rename profile">✎</button>
-                <button className="profile-card-delete" onClick={e => deleteProfile(p, e)} title="Delete profile">×</button>
+                <button className="profile-card-delete" onClick={e => deleteProfile(p.name, e)} title="Delete profile">×</button>
               </>
             )}
           </div>
@@ -149,18 +279,28 @@ function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
         )}
       </div>
       {creating && (
-        <form className="profile-create" onSubmit={e => { e.preventDefault(); create() }}>
-          <input
-            autoFocus
-            placeholder="Enter your name"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-          />
-          <button type="submit" disabled={!newName.trim()}>Create</button>
-          {profiles.length > 0 && (
-            <button type="button" className="btn-cancel" onClick={() => setCreating(false)}>Cancel</button>
-          )}
-        </form>
+        <div className="profile-create-wrap">
+          <form className="profile-create" onSubmit={e => { e.preventDefault(); create() }}>
+            <input
+              autoFocus
+              placeholder="Enter your name"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+            />
+            <button
+              type="button"
+              className="color-swatch-btn"
+              style={{ background: newColor }}
+              onClick={() => setShowCreatePicker(v => !v)}
+              title="Pick color"
+            />
+            <button type="submit" disabled={!newName.trim()}>Create</button>
+            {profiles.length > 0 && (
+              <button type="button" className="btn-cancel" onClick={() => { setCreating(false); setShowCreatePicker(false) }}>Cancel</button>
+            )}
+          </form>
+          {showCreatePicker && <ColorPicker color={newColor} onChange={setNewColor} />}
+        </div>
       )}
       {profiles.length === 0 && !creating && (
         <button className="profile-create-first" onClick={() => setCreating(true)}>
@@ -173,12 +313,12 @@ function ProfileSelect({ onSelect }: { onSelect: (name: string) => void }) {
 
 // --- Main App ---
 function App() {
-  const [currentProfile, setCurrentProfile] = useState<string | null>(loadCurrentProfile)
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(loadCurrentProfile)
 
   const [chatInit] = useState(() => {
     const p = loadCurrentProfile()
     if (!p) return null
-    return initChatForProfile(p)
+    return initChatForProfile(p.name)
   })
 
   const [convos, setConvos] = useState<Conversation[]>(chatInit?.convos ?? [])
@@ -194,12 +334,12 @@ function App() {
 
   const activeConvo = convos.find(c => c.id === activeId) ?? null
 
-  const selectProfile = (name: string) => {
-    saveCurrentProfile(name)
-    const { convos: c, activeId: a } = initChatForProfile(name)
+  const selectProfile = (profile: Profile) => {
+    saveCurrentProfile(profile.name)
+    const { convos: c, activeId: a } = initChatForProfile(profile.name)
     setConvos(c)
     setActiveId(a)
-    setCurrentProfile(name)
+    setCurrentProfile(profile)
     setInput('')
   }
 
@@ -244,7 +384,6 @@ function App() {
     const voice = voices.find(v => v.name === selectedVoice)
     if (voice) utterance.voice = voice
 
-    // Schedule word-synced jumps
     const words = text.trim().split(/\s+/)
     let elapsed = 0
     words.forEach(word => {
@@ -253,7 +392,6 @@ function App() {
       elapsed += dur
     })
 
-    // Safety net: if speech outlasts word estimates, keep bouncing via interval
     jumpTimeouts.current.push(window.setTimeout(() => {
       if (window.speechSynthesis.speaking) {
         const interval = window.setInterval(() => {
@@ -279,7 +417,7 @@ function App() {
     const convo = makeConvo()
     const updated = [convo, ...convos]
     setConvos(updated)
-    saveConvos(currentProfile, updated)
+    saveConvos(currentProfile.name, updated)
     setActiveId(convo.id)
   }
 
@@ -288,7 +426,7 @@ function App() {
     let updated = convos.filter(c => c.id !== id)
     if (updated.length === 0) updated = [makeConvo()]
     setConvos(updated)
-    saveConvos(currentProfile, updated)
+    saveConvos(currentProfile.name, updated)
     if (activeId === id) setActiveId(updated[0].id)
   }
 
@@ -300,7 +438,7 @@ function App() {
     const title = activeConvo.messages.length === 0 ? input.trim().slice(0, 40) : activeConvo.title
     const withUser = convos.map(c => c.id === activeId ? { ...c, title, messages: newMessages } : c)
     setConvos(withUser)
-    saveConvos(currentProfile, withUser)
+    saveConvos(currentProfile.name, withUser)
     setInput('')
     setIsLoading(true)
     try {
@@ -309,7 +447,7 @@ function App() {
         c.id === activeId ? { ...c, messages: [...newMessages, { role: 'assistant' as const, content: reply }] } : c
       )
       setConvos(withReply)
-      saveConvos(currentProfile, withReply)
+      saveConvos(currentProfile.name, withReply)
       speak(reply)
     } catch { /* silently fail */ }
     setIsLoading(false)
@@ -317,14 +455,16 @@ function App() {
 
   if (!currentProfile) return <ProfileSelect onSelect={selectProfile} />
 
+  const accentDark = darkenHex(currentProfile.color)
+
   return (
-    <div className="app">
+    <div className="app" style={{ '--accent': currentProfile.color, '--accent-dark': accentDark } as React.CSSProperties}>
       <aside className="sidebar">
         <div className="profile-bar">
-          <div className="profile-badge" style={{ background: profileColor(currentProfile) }}>
-            {currentProfile[0].toUpperCase()}
+          <div className="profile-badge" style={{ background: currentProfile.color }}>
+            {currentProfile.name[0].toUpperCase()}
           </div>
-          <span className="profile-bar-name">{currentProfile}</span>
+          <span className="profile-bar-name">{currentProfile.name}</span>
           <button className="profile-switch-btn" onClick={switchProfile}>Switch</button>
         </div>
         <button className="new-chat-btn" onClick={newConvo}>+ New conversation</button>

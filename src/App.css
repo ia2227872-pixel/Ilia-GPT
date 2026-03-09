@@ -32,7 +32,7 @@ body, html, #root {
 }
 
 .new-chat-btn {
-  background: #6c63ff;
+  background: var(--accent, #6c63ff);
   color: white;
   border: none;
   border-radius: 8px;
@@ -42,7 +42,7 @@ body, html, #root {
   text-align: left;
   flex-shrink: 0;
 }
-.new-chat-btn:hover { background: #5a52d5; }
+.new-chat-btn:hover { background: var(--accent-dark, #5a52d5); }
 
 .convo-list {
   flex: 1;
@@ -224,19 +224,19 @@ body, html, #root {
   outline: none;
   transition: border-color 0.15s;
 }
-.input-bar input:focus    { border-color: #6c63ff; }
+.input-bar input:focus    { border-color: var(--accent, #6c63ff); }
 .input-bar input::placeholder { color: #444; }
 
 .input-bar button {
   padding: 0.75rem 1.5rem;
-  background: #6c63ff;
+  background: var(--accent, #6c63ff);
   color: white;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
   cursor: pointer;
 }
-.input-bar button:hover:not(:disabled) { background: #5a52d5; }
+.input-bar button:hover:not(:disabled) { background: var(--accent-dark, #5a52d5); }
 .input-bar button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ---- Profile Bar (sidebar top) ---- */
@@ -353,7 +353,7 @@ body, html, #root {
   background: #1c1c1c;
   border-radius: 12px;
   border: 2px solid #6c63ff;
-  min-width: 100px;
+  min-width: 220px;
 }
 .profile-rename-form input {
   width: 90px;
@@ -468,3 +468,94 @@ body, html, #root {
   cursor: pointer;
 }
 .profile-create-first:hover { background: #5a52d5; }
+
+/* ---- Profile Create Wrap ---- */
+.profile-create-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ---- Color Swatch Button ---- */
+.color-swatch-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.color-swatch-btn:hover {
+  border-color: rgba(255,255,255,0.5);
+  transform: scale(1.1);
+}
+
+/* ---- Color Picker ---- */
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 200px;
+  padding: 0.5rem;
+  background: #1a1a1a;
+  border-radius: 10px;
+  border: 1px solid #333;
+}
+
+.cp-square {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  border-radius: 6px;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.cp-sq-white {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, white, transparent);
+  border-radius: 6px;
+}
+
+.cp-sq-black {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, black);
+  border-radius: 6px;
+}
+
+.cp-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 3px rgba(0,0,0,0.6);
+}
+
+.cp-hue {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cp-hue-thumb {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid white;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 3px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
