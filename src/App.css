@@ -243,14 +243,6 @@ body, html, #root {
   transition: width 0.3s ease-out;
 }
 
-.gen-failed {
-  font-size: 0.8rem;
-  color: #888;
-  font-style: italic;
-  display: block;
-  margin-top: 0.4rem;
-}
-
 .gen-spinner {
   display: inline-block;
   width: 11px;
