@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import './App.css'
 
 // --- Types ---
@@ -355,11 +355,25 @@ function App() {
           />
         </div>
         <div className="messages">
-          {activeConvo?.messages.map((msg, i) => (
-            <div key={i} className={`message ${msg.role}`}>
-              <div className="bubble">{msg.content}</div>
-            </div>
-          ))}
+          {(() => {
+            let userCount = 0
+            return activeConvo?.messages.map((msg, i) => {
+              if (msg.role === 'user') userCount++
+              const showReaction = msg.role === 'assistant' && userCount > 0 && userCount % 3 === 0
+              return (
+                <React.Fragment key={i}>
+                  {showReaction && (
+                    <div className="reaction-wrap">
+                      <img src="/reaction.png" className="reaction-img" alt="reaction" />
+                    </div>
+                  )}
+                  <div className={`message ${msg.role}`}>
+                    <div className="bubble">{msg.content}</div>
+                  </div>
+                </React.Fragment>
+              )
+            })
+          })()}
           {isLoading && <div className="message assistant"><div className="bubble typing">...</div></div>}
           <div ref={messagesEndRef} />
         </div>
