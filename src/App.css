@@ -1,3 +1,7 @@
+:root {
+  --text-outline: -1px -1px 0 rgba(0,0,0,0.45), 1px -1px 0 rgba(0,0,0,0.45), -1px 1px 0 rgba(0,0,0,0.45), 1px 1px 0 rgba(0,0,0,0.45);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -41,6 +45,7 @@ body, html, #root {
   cursor: pointer;
   text-align: left;
   flex-shrink: 0;
+  text-shadow: var(--text-outline);
 }
 .new-chat-btn:hover { background: var(--accent-dark, #5a52d5); }
 
@@ -177,13 +182,14 @@ body, html, #root {
 .message.user .bubble {
   background: var(--accent, #6c63ff);
   color: #fff;
-  text-shadow: var(--bubble-shadow, none);
+  text-shadow: var(--text-outline);
   border-radius: 18px 18px 4px 18px;
 }
 
 .message.assistant .bubble {
   background: #212121;
   color: #ddd;
+  text-shadow: var(--text-outline);
   border-radius: 18px 18px 18px 4px;
 }
 
@@ -261,6 +267,7 @@ body, html, #root {
   font-weight: bold;
   color: white;
   flex-shrink: 0;
+  text-shadow: var(--text-outline);
 }
 
 .profile-bar-name {
