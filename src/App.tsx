@@ -95,6 +95,50 @@ function parseAssistantMessage(content: string): { text: string; images: string[
   return { text, images }
 }
 
+// --- Generating Image with progress bar ---
+function GeneratingImage({ url }: { url: string }) {
+  const [progress, setProgress] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const timerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    timerRef.current = window.setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) { clearInterval(timerRef.current!); return 90 }
+        const rate = prev < 40 ? 1.8 : prev < 75 ? 0.7 : 0.2
+        return Math.min(90, prev + rate)
+      })
+    }, 100)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
+
+  const handleLoad = () => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    setProgress(100)
+    setLoaded(true)
+  }
+
+  return (
+    <div className="generating-image-wrap">
+      {!loaded && (
+        <div className="gen-progress-wrap">
+          <span className="gen-progress-label">Generating... {Math.round(progress)}%</span>
+          <div className="gen-progress-track">
+            <div className="gen-progress-bar" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+      <img
+        src={url}
+        alt=""
+        className="chat-image"
+        style={{ display: loaded ? 'block' : 'none' }}
+        onLoad={handleLoad}
+      />
+    </div>
+  )
+}
+
 // --- Groq ---
 async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -521,7 +565,7 @@ function App() {
                   )}
                   {images.map((url, j) => (
                     <div key={j} className="message assistant">
-                      <img src={url} alt="" className="chat-image" loading="lazy" />
+                      <GeneratingImage url={url} />
                     </div>
                   ))}
                   {text && (

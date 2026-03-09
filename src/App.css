@@ -204,8 +204,41 @@ body, html, #root {
   height: auto;
   border-radius: 12px;
   display: block;
+}
+
+.generating-image-wrap {
+  max-width: 300px;
+  width: 100%;
+}
+
+.gen-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
   background: #1e1e1e;
-  min-height: 80px;
+  border-radius: 12px;
+  min-width: 220px;
+}
+
+.gen-progress-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  text-shadow: none;
+}
+
+.gen-progress-track {
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gen-progress-bar {
+  height: 100%;
+  background: var(--accent, #6c63ff);
+  border-radius: 3px;
+  transition: width 0.1s ease-out;
 }
 
 .reaction-wrap {
