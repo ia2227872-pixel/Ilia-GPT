@@ -356,10 +356,8 @@ function App() {
         </div>
         <div className="messages">
           {(() => {
-            let userCount = 0
             return activeConvo?.messages.map((msg, i) => {
-              if (msg.role === 'user') userCount++
-              const showReaction = msg.role === 'assistant' && userCount > 0 && userCount % 3 === 0
+              const showReaction = msg.role === 'assistant' && (((i * 1103515245 + 12345) >>> 0) % 100 < 5)
               return (
                 <React.Fragment key={i}>
                   {showReaction && (
