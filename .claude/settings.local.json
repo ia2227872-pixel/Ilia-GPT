@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:commons.wikimedia.org)",
+      "WebFetch(domain:icons.getbootstrap.com)",
+      "WebFetch(domain:www.starkinsider.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(claude:*)",
+      "Bash(where:*)",
+      "WebFetch(domain:www.instagram.com)",
+      "WebFetch(domain:clawdachi.app)",
+      "WebFetch(domain:x.com)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:www.printables.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm install @anthropic-ai/sdk)",
+      "Bash(test -f /c/Users/ia222/Projects/my-site/.env)",
+      "Bash(npm uninstall @anthropic-ai/sdk)",
+      "Bash(test -f /c/Users/ia222/Projects/my-site/.claude/launch.json)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(command -v npm)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist /FI \"PID eq 32292\")",
+      "Bash(powershell -Command \"Get-Process -Id 32292 | Select-Object Name, Id, Path\")",
+      "Bash(git remote set-url origin https://github.com/ia2227872-pixel/Ilia-GPT.git)",
+      "Bash(git add .)",
+      "Bash(git commit -m \"IliaGPT site\")",
+      "Bash(git branch -M main)",
+      "Bash(git push -u origin main)",
+      "Bash(git config --global user.email \"ia2227872@gmail.com\")",
+      "Bash(git config --global user.name \"Ilia\")"
+    ]
+  }
+}
