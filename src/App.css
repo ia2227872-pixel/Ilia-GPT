@@ -175,8 +175,9 @@ body, html, #root {
 }
 
 .message.user .bubble {
-  background: #6c63ff;
+  background: var(--accent, #6c63ff);
   color: #fff;
+  text-shadow: var(--bubble-shadow, none);
   border-radius: 18px 18px 4px 18px;
 }
 

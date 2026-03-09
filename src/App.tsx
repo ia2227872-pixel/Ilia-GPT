@@ -31,6 +31,14 @@ function hsvToHex({ h, s, v }: { h: number; s: number; v: number }): string {
   return `#${f(5)}${f(3)}${f(1)}`
 }
 
+function getLuminance(hex: string): number {
+  const toLinear = (c: number) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  const r = toLinear(parseInt(hex.slice(1, 3), 16) / 255)
+  const g = toLinear(parseInt(hex.slice(3, 5), 16) / 255)
+  const b = toLinear(parseInt(hex.slice(5, 7), 16) / 255)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
 function darkenHex(hex: string, amount = 0.18): string {
   const { h, s, v } = hexToHsv(hex)
   return hsvToHex({ h, s, v: Math.max(0, v - amount) })
@@ -456,9 +464,13 @@ function App() {
   if (!currentProfile) return <ProfileSelect onSelect={selectProfile} />
 
   const accentDark = darkenHex(currentProfile.color)
+  const isLight = getLuminance(currentProfile.color) > 0.35
+  const bubbleShadow = isLight
+    ? '-1px -1px 0 rgba(0,0,0,0.55), 1px -1px 0 rgba(0,0,0,0.55), -1px 1px 0 rgba(0,0,0,0.55), 1px 1px 0 rgba(0,0,0,0.55)'
+    : 'none'
 
   return (
-    <div className="app" style={{ '--accent': currentProfile.color, '--accent-dark': accentDark } as React.CSSProperties}>
+    <div className="app" style={{ '--accent': currentProfile.color, '--accent-dark': accentDark, '--bubble-shadow': bubbleShadow } as React.CSSProperties}>
       <aside className="sidebar">
         <div className="profile-bar">
           <div className="profile-badge" style={{ background: currentProfile.color }}>
