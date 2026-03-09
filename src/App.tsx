@@ -85,70 +85,6 @@ function initChatForProfile(name: string) {
   return { convos: saved, activeId: saved[0].id }
 }
 
-// --- Image helpers ---
-function parseAssistantMessage(content: string): { text: string; images: string[] } {
-  const images: string[] = []
-  const text = content.replace(/\[GENERATE:\s*([^\]]+)\]/gi, (_, p) => {
-    images.push(`https://image.pollinations.ai/prompt/${encodeURIComponent(p.trim())}?width=512&height=384&model=turbo&nologo=true`)
-    return ''
-  }).trim()
-  return { text, images }
-}
-
-// --- Generating Image with progress bar ---
-// Turbo model typically finishes in 3-8s; bar reaches ~88% in ~5s then stalls
-function GeneratingImage({ url }: { url: string }) {
-  const [progress, setProgress] = useState(0)
-  const [loaded, setLoaded] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const timerRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    timerRef.current = window.setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 88) { clearInterval(timerRef.current!); return 88 }
-        // Fast early (simulates model warmup), steady mid, slow near end
-        const rate = prev < 45 ? 3.5 : prev < 72 ? 1.4 : 0.4
-        return Math.min(88, prev + rate)
-      })
-    }, 100)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [])
-
-  const handleLoad = () => {
-    if (timerRef.current) clearInterval(timerRef.current)
-    setProgress(100)
-    setLoaded(true)
-  }
-
-  const handleError = () => {
-    if (timerRef.current) clearInterval(timerRef.current)
-    setFailed(true)
-  }
-
-  if (failed) return <div className="gen-progress-wrap"><span className="gen-progress-label">Image generation failed.</span></div>
-
-  return (
-    <div className="generating-image-wrap">
-      {!loaded && (
-        <div className="gen-progress-wrap">
-          <span className="gen-progress-label">Generating... {Math.round(progress)}%</span>
-          <div className="gen-progress-track">
-            <div className="gen-progress-bar" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      )}
-      <img
-        src={url}
-        alt=""
-        className="chat-image"
-        style={{ display: loaded ? 'block' : 'none' }}
-        onLoad={handleLoad}
-        onError={handleError}
-      />
-    </div>
-  )
-}
 
 // --- Groq ---
 async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
@@ -159,7 +95,7 @@ async function askGroq(apiKey: string, messages: Message[]): Promise<string> {
       model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       messages: [
-        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). If the user asks to generate or create an image, include [GENERATE: detailed visual description] in your response. Only include an image tag when explicitly asked.' },
+        { role: 'system', content: 'Your name is Ilia. You are a real person. Answer all questions as Ilia, in first person, casually and conversationally. Keep answers short (2-3 sentences max). Do not mention any pictures or images.' },
         ...messages,
       ],
     }),
@@ -514,7 +450,7 @@ function App() {
       )
       setConvos(withReply)
       saveConvos(currentProfile.name, withReply)
-      speak(parseAssistantMessage(reply).text)
+      speak(reply)
     } catch { /* silently fail */ }
     setIsLoading(false)
   }
@@ -564,9 +500,6 @@ function App() {
           {(() => {
             return activeConvo?.messages.map((msg, i) => {
               const showReaction = msg.role === 'assistant' && (((i * 1103515245 + 12345) >>> 0) % 100 < 5)
-              const { text, images } = msg.role === 'assistant'
-                ? parseAssistantMessage(msg.content)
-                : { text: msg.content, images: [] }
               return (
                 <React.Fragment key={i}>
                   {showReaction && (
@@ -574,16 +507,9 @@ function App() {
                       <img src="/reaction.png" className="reaction-img" alt="reaction" />
                     </div>
                   )}
-                  {images.map((url, j) => (
-                    <div key={j} className="message assistant">
-                      <GeneratingImage url={url} />
-                    </div>
-                  ))}
-                  {text && (
-                    <div className={`message ${msg.role}`}>
-                      <div className="bubble">{text}</div>
-                    </div>
-                  )}
+                  <div className={`message ${msg.role}`}>
+                    <div className="bubble">{msg.content}</div>
+                  </div>
                 </React.Fragment>
               )
             })
