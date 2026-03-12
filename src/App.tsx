@@ -452,6 +452,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const [selectedVoice, setSelectedVoice] = useState('__elevenlabs__')
+  const [elevenLabsDown, setElevenLabsDown] = useState(false)
+  const [voiceTooltipVisible, setVoiceTooltipVisible] = useState(false)
 
   const imgRef = useRef<HTMLImageElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -508,10 +510,42 @@ function App() {
     jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
     jumpTimeouts.current = []
 
+    const speakBrowser = (t: string) => {
+      const utterance = new SpeechSynthesisUtterance(t)
+      const v = selectedVoice !== '__elevenlabs__'
+        ? voices.find(vv => vv.name === selectedVoice)
+        : voices[0]
+      if (v) utterance.voice = v
+      const words = t.trim().split(/\s+/)
+      let elapsed = 0
+      words.forEach(word => {
+        const dur = Math.max(150, Math.min(700, 120 + word.length * 65))
+        jumpTimeouts.current.push(window.setTimeout(() => triggerJump(dur), elapsed))
+        elapsed += dur
+      })
+      jumpTimeouts.current.push(window.setTimeout(() => {
+        if (window.speechSynthesis.speaking) {
+          const interval = window.setInterval(() => {
+            if (!window.speechSynthesis.speaking) { clearInterval(interval); return }
+            triggerJump(300)
+          }, 350)
+          jumpTimeouts.current.push(interval)
+        }
+      }, elapsed))
+      const cleanup = () => {
+        jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
+        jumpTimeouts.current = []
+        imgRef.current?.classList.remove('jumping')
+      }
+      utterance.onend = cleanup
+      utterance.onerror = cleanup
+      window.speechSynthesis.speak(utterance)
+    }
+
     if (selectedVoice === '__elevenlabs__') {
       const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY
       const voiceId = import.meta.env.VITE_ELEVENLABS_VOICE_ID
-      if (!apiKey || !voiceId) return
+      if (!apiKey || !voiceId) { speakBrowser(text); return }
       ;(async () => {
         try {
           const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -523,7 +557,17 @@ function App() {
               voice_settings: { stability: 0.5, similarity_boost: 0.75 }
             })
           })
-          if (!res.ok) return
+          if (!res.ok) {
+            try {
+              const errData = await res.json()
+              const code = String(errData?.detail?.code || errData?.detail?.status || '')
+              if (res.status === 429 || code.includes('quota') || code.includes('credit') || code.includes('limit')) {
+                setElevenLabsDown(true)
+              }
+            } catch { /* ignore parse errors */ }
+            speakBrowser(text)
+            return
+          }
           const blob = await res.blob()
           const url = URL.createObjectURL(blob)
           const audio = new Audio(url)
@@ -542,41 +586,12 @@ function App() {
           audio.onended = cleanup
           audio.onerror = cleanup
           audio.play()
-        } catch { /* silently fail */ }
+        } catch { speakBrowser(text) }
       })()
       return
     }
 
-    const utterance = new SpeechSynthesisUtterance(text)
-    const voice = voices.find(v => v.name === selectedVoice)
-    if (voice) utterance.voice = voice
-
-    const words = text.trim().split(/\s+/)
-    let elapsed = 0
-    words.forEach(word => {
-      const dur = Math.max(150, Math.min(700, 120 + word.length * 65))
-      jumpTimeouts.current.push(window.setTimeout(() => triggerJump(dur), elapsed))
-      elapsed += dur
-    })
-
-    jumpTimeouts.current.push(window.setTimeout(() => {
-      if (window.speechSynthesis.speaking) {
-        const interval = window.setInterval(() => {
-          if (!window.speechSynthesis.speaking) { clearInterval(interval); return }
-          triggerJump(300)
-        }, 350)
-        jumpTimeouts.current.push(interval)
-      }
-    }, elapsed))
-
-    const cleanup = () => {
-      jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
-      jumpTimeouts.current = []
-      imgRef.current?.classList.remove('jumping')
-    }
-    utterance.onend = cleanup
-    utterance.onerror = cleanup
-    window.speechSynthesis.speak(utterance)
+    speakBrowser(text)
   }
 
   const newConvo = () => {
@@ -644,10 +659,28 @@ function App() {
             </div>
           ))}
         </div>
-        <select className="voice-select" value={selectedVoice} onChange={e => setSelectedVoice(e.target.value)}>
-          <option value="__elevenlabs__">Ilia</option>
-          {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-        </select>
+        <div className="voice-select-wrap">
+          <select className={`voice-select${elevenLabsDown && selectedVoice === '__elevenlabs__' ? ' voice-err' : ''}`} value={selectedVoice} onChange={e => setSelectedVoice(e.target.value)}>
+            <option value="__elevenlabs__">Ilia</option>
+            {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+          </select>
+          {elevenLabsDown && (
+            <span
+              className="voice-down-icon"
+              onMouseEnter={() => setVoiceTooltipVisible(true)}
+              onMouseLeave={() => setVoiceTooltipVisible(false)}
+              onClick={() => setVoiceTooltipVisible(v => !v)}
+            >
+              <svg viewBox="0 0 20 17" width="15" height="15">
+                <polygon points="10,1 19,16 1,16" fill="#e53e3e"/>
+                <text x="10" y="14" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" fontFamily="sans-serif">!</text>
+              </svg>
+              {voiceTooltipVisible && (
+                <div className="voice-down-tooltip">Voice is down for now</div>
+              )}
+            </span>
+          )}
+        </div>
       </aside>
 
       <main className="main">

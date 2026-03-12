@@ -98,6 +98,14 @@ body, html, #root {
 .convo-row:hover .convo-delete { visibility: visible; }
 .convo-delete:hover { color: #e55; background: #2e1515; }
 
+.voice-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
 .voice-select {
   background: #1e1e1e;
   color: #777;
@@ -108,6 +116,44 @@ body, html, #root {
   cursor: pointer;
   flex-shrink: 0;
   width: 100%;
+}
+
+.voice-err {
+  color: #e53e3e !important;
+  border-color: #e53e3e !important;
+}
+
+.voice-down-icon {
+  position: relative;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.voice-down-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #e53e3e;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.voice-down-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #e53e3e;
 }
 
 /* ---- Main ---- */
