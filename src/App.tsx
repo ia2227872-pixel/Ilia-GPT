@@ -528,19 +528,16 @@ function App() {
           const url = URL.createObjectURL(blob)
           const audio = new Audio(url)
           currentAudio.current = audio
-          const words = text.trim().split(/\s+/)
-          let elapsed = 0
-          words.forEach(word => {
-            const dur = Math.max(150, Math.min(700, 120 + word.length * 65))
-            jumpTimeouts.current.push(window.setTimeout(() => triggerJump(dur), elapsed))
-            elapsed += dur
-          })
           const cleanup = () => {
             URL.revokeObjectURL(url)
             currentAudio.current = null
             jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
             jumpTimeouts.current = []
             imgRef.current?.classList.remove('jumping')
+          }
+          audio.onplay = () => {
+            const interval = window.setInterval(() => triggerJump(300), 350)
+            jumpTimeouts.current.push(interval as unknown as number)
           }
           audio.onended = cleanup
           audio.onerror = cleanup
