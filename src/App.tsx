@@ -451,11 +451,12 @@ function App() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
-  const [selectedVoice, setSelectedVoice] = useState('')
+  const [selectedVoice, setSelectedVoice] = useState('__elevenlabs__')
 
   const imgRef = useRef<HTMLImageElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const jumpTimeouts = useRef<number[]>([])
+  const currentAudio = useRef<HTMLAudioElement | null>(null)
 
   const activeConvo = convos.find(c => c.id === activeId) ?? null
 
@@ -470,6 +471,7 @@ function App() {
 
   const switchProfile = () => {
     window.speechSynthesis.cancel()
+    if (currentAudio.current) { currentAudio.current.pause(); currentAudio.current = null }
     jumpTimeouts.current.forEach(clearTimeout)
     saveCurrentProfile(null)
     setCurrentProfile(null)
@@ -502,8 +504,51 @@ function App() {
 
   const speak = (text: string) => {
     window.speechSynthesis.cancel()
+    if (currentAudio.current) { currentAudio.current.pause(); currentAudio.current = null }
     jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
     jumpTimeouts.current = []
+
+    if (selectedVoice === '__elevenlabs__') {
+      const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY
+      const voiceId = import.meta.env.VITE_ELEVENLABS_VOICE_ID
+      if (!apiKey || !voiceId) return
+      ;(async () => {
+        try {
+          const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
+            body: JSON.stringify({
+              text,
+              model_id: 'eleven_monolingual_v1',
+              voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+            })
+          })
+          if (!res.ok) return
+          const blob = await res.blob()
+          const url = URL.createObjectURL(blob)
+          const audio = new Audio(url)
+          currentAudio.current = audio
+          const words = text.trim().split(/\s+/)
+          let elapsed = 0
+          words.forEach(word => {
+            const dur = Math.max(150, Math.min(700, 120 + word.length * 65))
+            jumpTimeouts.current.push(window.setTimeout(() => triggerJump(dur), elapsed))
+            elapsed += dur
+          })
+          const cleanup = () => {
+            URL.revokeObjectURL(url)
+            currentAudio.current = null
+            jumpTimeouts.current.forEach(t => { clearTimeout(t); clearInterval(t) })
+            jumpTimeouts.current = []
+            imgRef.current?.classList.remove('jumping')
+          }
+          audio.onended = cleanup
+          audio.onerror = cleanup
+          audio.play()
+        } catch { /* silently fail */ }
+      })()
+      return
+    }
 
     const utterance = new SpeechSynthesisUtterance(text)
     const voice = voices.find(v => v.name === selectedVoice)
@@ -602,11 +647,10 @@ function App() {
             </div>
           ))}
         </div>
-        {voices.length > 0 && (
-          <select className="voice-select" value={selectedVoice} onChange={e => setSelectedVoice(e.target.value)}>
-            {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-          </select>
-        )}
+        <select className="voice-select" value={selectedVoice} onChange={e => setSelectedVoice(e.target.value)}>
+          <option value="__elevenlabs__">Ilia</option>
+          {voices.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+        </select>
       </aside>
 
       <main className="main">
